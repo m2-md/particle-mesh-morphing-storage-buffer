@@ -4,6 +4,8 @@
 **▶ [Live demo](https://m2-md.github.io/particle-mesh-morphing-storage-buffer/)** · [Source](https://github.com/m2-md/particle-mesh-morphing-storage-buffer)
 <!-- LINKS:END -->
 
+> Morphing 100,000 particles between complex 3D meshes using a single Three.js TSL compute kernel backed by storage buffers across WebGPU and WebGL2 compatibility backends.
+
 Working code for the article "One Kernel, Two Shaders: Mesh-to-Mesh Particle Morphing with TSL
 Compute".
 
@@ -344,6 +346,13 @@ cold runs are marked with `note`). The tables in the article are based on that f
 - There is **no** 1,000,000 particle option (the series' demo weight rule). The limit is not
   memory — even at 1M the four buffers stay below WebGPU's default
   `maxStorageBufferBindingSize` limit — it is the CPU sampling stall.
+
+## Tech stack
+
+- TypeScript, Vite, Vitest, npm.
+- `three@0.185.1` (TSL compute, `instancedArray` storage buffers), targeting both the
+  WebGPU and WebGL2-compatibility renderer backends.
+- No React/R3F, no off-the-shelf particle/GPGPU library, no hand-written WGSL/GLSL.
 
 ## License
 
