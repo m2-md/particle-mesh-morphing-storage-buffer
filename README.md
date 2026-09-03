@@ -1,5 +1,9 @@
 # One Kernel, Two Shaders — mesh-to-mesh particle morphing with TSL compute
 
+<!-- LINKS:BEGIN — üretildi: scripts/sync-repo-links.py · elle düzenleme -->
+**▶ [Live demo](https://m2-md.github.io/particle-mesh-morphing-storage-buffer/)** · [Source](https://github.com/m2-md/particle-mesh-morphing-storage-buffer)
+<!-- LINKS:END -->
+
 Working code for the article "One Kernel, Two Shaders: Mesh-to-Mesh Particle Morphing with TSL
 Compute".
 
