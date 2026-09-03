@@ -6,10 +6,10 @@ export interface Timestamps {
 }
 
 /**
- * Gerçek imza `resolveTimestampsAsync( type = 'render' )` (Renderer.js:2856):
- * aşama ADIYLA isteniyor ve iki aşama ayrı ayrı çözülüyor. Renderer
- * `trackTimestamp: true` ile kurulmamışsa three konsola `warnOnce` basar —
- * onun yerine null döndürüp sütunu boş bırakıyoruz.
+ * Actual signature `resolveTimestampsAsync( type = 'render' )` (Renderer.js:2856):
+ * stage requested by NAME and resolved separately. If Renderer was not created
+ * with `trackTimestamp: true`, three emits `warnOnce` to console —
+ * instead we return null and leave column empty.
  */
 export async function readTimestamps(renderer: WebGPURenderer): Promise<Timestamps> {
   if (!hasTimestamps(renderer)) return { computeMs: null, renderMs: null };

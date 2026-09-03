@@ -1,9 +1,9 @@
-/** Medyan. Girdi dizisi mutasyona uğramaz. */
+/** Median. Input array is not mutated. */
 export function median(values: readonly number[]): number {
   return percentile(values, 50);
 }
 
-/** Doğrusal enterpolasyonlu yüzdelik. Boş dizide NaN döner (0 DEĞİL). */
+/** Linear interpolated percentile. Returns NaN on empty array (does not write 0). */
 export function percentile(values: readonly number[], p: number): number {
   if (values.length === 0) return Number.NaN;
   const sorted = [...values].sort((a, b) => a - b);

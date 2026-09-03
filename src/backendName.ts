@@ -1,7 +1,7 @@
 /**
- * Renderer'ın kendisine değil, BACKEND'e soruyoruz: `renderer.isWebGPURenderer`
- * `forceWebGL` dalında da `true` döner ve rozete yalan söyletir.
- * `@types/three` bu iki bayrağı bildirmiyor; sözleşmeyi burada yazıyoruz.
+ * We query the BACKEND rather than the Renderer itself: `renderer.isWebGPURenderer`
+ * returns `true` even on `forceWebGL` branch and makes the badge report incorrectly.
+ * `@types/three` does not declare these flags; we declare the contract here.
  */
 export interface BackendFlags {
   isWebGPUBackend?: boolean;

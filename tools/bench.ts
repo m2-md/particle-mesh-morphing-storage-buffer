@@ -1,6 +1,6 @@
 /**
- * CPU ölçümleri — GPU YOK, tarayıcı YOK. `npm run bench`.
- * Tek satır `BENCH {json}` basar; makaledeki CPU tabloları buradan doluyor.
+ * CPU benchmarks — no GPU, no browser. `npm run bench`.
+ * Emits single line `BENCH {json}`; CPU tables in article are populated from here.
  */
 import { BufferAttribute, Mesh, MeshBasicMaterial, SphereGeometry, Vector3 } from "three";
 import { MeshSurfaceSampler } from "three/addons/math/MeshSurfaceSampler.js";
@@ -12,8 +12,8 @@ import { median, round } from "../src/stats";
 import { readThreeVersion } from "./threeVersion";
 
 /**
- * `setRandomGenerator` r185 kaynağında var (`MeshSurfaceSampler.js:162`) ama
- * `@types/three` bildirmiyor. Tohumlanabilirlik olmadan kıyas tekrarlanamaz.
+ * `setRandomGenerator` exists in r185 source (`MeshSurfaceSampler.js:162`) but
+ * is not declared in `@types/three`. Benchmark cannot be reproducible without seeding.
  */
 type SeedableSampler = MeshSurfaceSampler & {
   setRandomGenerator(fn: () => number): MeshSurfaceSampler & SeedableSampler;
@@ -60,8 +60,8 @@ function polarCapRatio(sampler: { sample(rng: () => number, t: Vector3): Vector3
 }
 
 /**
- * `setWeightAttribute` tuzağı: köşe başına ağırlık, üçgenin ağırlığı köşelerinin
- * ortalaması. Ekvatoru kesen üçgenler ortalama ağırlıkla seçilmeye devam ediyor.
+ * `setWeightAttribute` pitfall: per-vertex weight means triangle weight is vertex average.
+ * Triangles crossing the equator continue to be picked with average weight.
  */
 function weightTrap() {
   const geometry = new SphereGeometry(1, 64, 32);
@@ -160,7 +160,7 @@ async function main(): Promise<void> {
     polarCap: {
       cdf: round(polarCapRatio(buildSurfaceSampler(sphere)), 5),
       uniformTriangle: round(polarCapRatio(buildUniformTriangleSampler(sphere)), 5),
-      // Arşimet: kuşak alanı 2π·r·h = 2π·1·0,2 = 0,4π; toplam 4π. Oran h/(2r) = 0,1.
+      // Archimedes: cap area 2π·r·h = 2π·1·0.2 = 0.4π; total 4π. Ratio h/(2r) = 0.1.
       analytic: 0.1,
       samples: CAP_SAMPLES,
     },

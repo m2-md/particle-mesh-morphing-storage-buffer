@@ -7,96 +7,94 @@ import {
   transformVaryings,
 } from "../tools/dumpShaders";
 
-describe("aynı kernel, iki backend", () => {
-  it("WGSL kalıcı bir read_write storage buffer üretir", () => {
+describe("same kernel, two backends", () => {
+  it("WGSL produces persistent read_write storage buffer", () => {
     const wgsl = dumpCompute(buildDumpKernel({ pbo: true }), false);
     expect(wgsl).toContain("var<storage, read_write>");
   });
 
-  it("WGSL eş okumasını korur", () => {
+  it("WGSL preserves partner read", () => {
     const wgsl = dumpCompute(buildDumpKernel({ pbo: true }), false);
     expect(wgsl).toContain("1023u - instanceIndex");
   });
 
-  it("WGSL sınır korumasını kendisi ekler", () => {
+  it("WGSL adds bounds guard automatically", () => {
     const wgsl = dumpCompute(buildDumpKernel({ pbo: true }), false);
     expect(wgsl).toMatch(/if \( instanceIndex >= .+ \) \{ return; \}/);
   });
 
-  it("GLSL rastgele okumayı texelFetch ile yapar (PBO açıkken)", () => {
+  it("GLSL performs random read via texelFetch when PBO enabled", () => {
     const glsl = dumpCompute(buildDumpKernel({ pbo: true }), true);
     expect(glsl).toContain("texelFetch");
   });
 
-  it("PBO kapalıyken texelFetch YOK: sessiz çöküşün regresyon testi", () => {
+  it("when PBO disabled no texelFetch: regression test for silent fallback", () => {
     const glsl = dumpCompute(buildDumpKernel({ pbo: false }), true);
     expect(glsl).not.toContain("texelFetch");
   });
 
-  it("iki döküm de aynı sürümden çıkar", () => {
+  it("both dumps originate from same version", () => {
     expect(dumpCompute(buildDumpKernel({ pbo: true }), false)).toContain("r185");
     expect(dumpCompute(buildDumpKernel({ pbo: true }), true)).toContain("r185");
   });
 });
 
-describe("döküm gövdesi gerçekten dolu", () => {
-  // `three/tsl` ile `three/src` karıştırılırsa gövde SESSİZCE boş derlenir.
-  it("WGSL gövdesinde tampon erişimi var", () => {
+describe("dump body is populated", () => {
+  it("WGSL body contains buffer access", () => {
     expect(dumpCompute(buildDumpKernel({ pbo: true }), false)).toContain("positionBuffer.value[");
   });
 
-  it("GLSL gövdesinde atama var", () => {
+  it("GLSL body contains assignment", () => {
     const glsl = dumpCompute(buildDumpKernel({ pbo: true }), true);
     expect(glsl).toContain("nodeVarying0 = (");
   });
 
-  it("PBO'suz GLSL'de eş okuması parçacığın KENDİ değerine çöküyor", () => {
+  it("in GLSL without PBO partner read collapses to particle own value", () => {
     const glsl = dumpCompute(buildDumpKernel({ pbo: false }), true);
-    // Fark ifadesi aynı değişkenin kendisinden çıkarılması hâline gelmiş.
     expect(glsl).toMatch(/\(\s*nodeVarying0 - nodeVarying0\s*\)/);
   });
 });
 
-describe("WGSL yapısal iddialar", () => {
-  it("varsayılan workgroup boyutu 64", () => {
+describe("WGSL structural assertions", () => {
+  it("default workgroup dimension 64", () => {
     expect(dumpCompute(buildDumpKernel({ pbo: true }), false)).toContain(
       "@compute @workgroup_size( 64",
     );
   });
 
-  it("`.toReadOnly()` uygulanan tampon var<storage, read> üretir", () => {
+  it("buffer with `.toReadOnly()` produces var<storage, read>", () => {
     const wgsl = dumpCompute(buildReadOnlyKernel(), false);
     expect(wgsl).toContain("var<storage, read>");
     expect(wgsl).toContain("var<storage, read_write>");
   });
 
-  it("iki tamponlu kernel iki storage binding + bir uniform binding üretir", () => {
+  it("two buffer kernel produces two storage bindings + one uniform binding", () => {
     const wgsl = dumpCompute(buildDumpKernel({ pbo: true }), false);
     expect(countMatches(wgsl, /@binding\(/g)).toBe(3);
     expect(countMatches(wgsl, /var<storage, read_write>/g)).toBe(2);
   });
 });
 
-describe("WebGL2 emülasyonu", () => {
-  it("yazma transform feedback varying'lerinden gidiyor", () => {
+describe("WebGL2 emulation", () => {
+  it("writes pass through transform feedback varyings", () => {
     expect(transformVaryings(buildDumpKernel({ pbo: true }))).toEqual([
       "nodeVarying0",
       "nodeVarying1",
     ]);
   });
 
-  it("PBO açıkken sampler beliriyor, kapalıyken hiç yok", () => {
+  it("sampler appears when PBO is on, absent when off", () => {
     const withPbo = dumpCompute(buildDumpKernel({ pbo: true }), true);
     const without = dumpCompute(buildDumpKernel({ pbo: false }), true);
     expect(countMatches(withPbo, /uniform highp sampler2D/g)).toBe(1);
     expect(countMatches(without, /uniform highp sampler2D/g)).toBe(0);
   });
 
-  it("compute programı vertex shader olarak çıkıyor: gl_PointSize var", () => {
+  it("compute program emits as vertex shader: gl_PointSize exists", () => {
     expect(dumpCompute(buildDumpKernel({ pbo: true }), true)).toContain("gl_PointSize = 1.0;");
   });
 
-  it("GLSL'de WGSL'in storage sözdizimi HİÇ geçmiyor", () => {
+  it("GLSL contains no WGSL storage syntax", () => {
     const glsl = dumpCompute(buildDumpKernel({ pbo: true }), true);
     expect(glsl).not.toContain("var<storage");
     expect(glsl).toContain("#version 300 es");

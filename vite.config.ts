@@ -1,8 +1,8 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  // Port SABİT: README'deki ölçüm URL'leri birebir bu adresi gösteriyor.
-  // Port doluysa Vite bir üstüne kaymak yerine hata verir.
+  // Port is FIXED: measurement URLs in documentation point exactly to this address.
+  // If port is busy, Vite errors out instead of shifting to another port.
   server: { port: 5173, strictPort: true },
   preview: { port: 4173, strictPort: true },
   build: { target: "esnext" },

@@ -1,10 +1,10 @@
 /**
- * Aynı TSL kernel'ından iki shader döküyoruz — GPU YOK, tarayıcı YOK.
+ * Dumps two shaders from the same TSL kernel — no GPU, no browser.
  *
- * DİKKAT: bu dosyadaki HER three import'u `three/src/` altından geliyor.
- * `three/tsl` (build çıktısı) ile `three/src/...` ayrı modül kopyalarıdır;
- * karıştırırsanız `THREE.TSL: No stack defined for assign operation` uyarısı
- * alırsınız ve kernel gövdesi SESSİZCE boş derlenir.
+ * NOTE: All three imports in this file come from under `three/src/`.
+ * `three/tsl` (build output) and `three/src/...` are distinct module instances;
+ * mixing them causes `THREE.TSL: No stack defined for assign operation` warnings
+ * and the kernel body compiles SILENTLY empty.
  */
 import {
   Fn,
@@ -19,7 +19,7 @@ import WGSLNodeBuilder from "three/src/renderers/webgpu/nodes/WGSLNodeBuilder.js
 import GLSLNodeBuilder from "three/src/renderers/webgl-fallback/nodes/GLSLNodeBuilder.js";
 import { readThreeVersion } from "./threeVersion";
 
-/** Node builder'ın beklediği en küçük renderer yüzeyi. Test dublörü. */
+/** Minimal renderer surface expected by node builder. Test double. */
 function fakeRenderer(isWebGL: boolean) {
   const backend = isWebGL
     ? { isWebGLBackend: true, extensions: { has: () => false } }
@@ -37,7 +37,7 @@ function fakeRenderer(isWebGL: boolean) {
     library: null,
     getRenderTarget: () => null,
     getMRT: () => null,
-    contextNode: context(vec3(0)), // null OLAMAZ
+    contextNode: context(vec3(0)), // CANNOT be null
     coordinateSystem: 2000,
     outputColorSpace: "srgb",
     currentColorSpace: "srgb-linear",
@@ -50,8 +50,8 @@ function fakeRenderer(isWebGL: boolean) {
 }
 
 /**
- * `@types/three`'de `NodeBuilder` neredeyse boş bir soyut sınıf: `build()` de
- * `computeShader` de bildirilmemiş. Kullandığımız yüzeyi burada yazıyoruz.
+ * In `@types/three`, `NodeBuilder` is almost empty: neither `build()` nor
+ * `computeShader` is declared. We declare the surface used here.
  */
 interface ComputeBuilder {
   build(): void;
@@ -71,14 +71,14 @@ export function dumpCompute(kernel: unknown, isWebGL: boolean): string {
 }
 
 /**
- * Döküm kerneli: kasten küçük. Üç satır, iki tampon, bir eş okuması.
- * `vec3` kullanıyoruz — WGSL çıktısında `array< vec3<f32> >` görünsün diye.
+ * Dump kernel: deliberately small. Three lines, two buffers, one partner read.
+ * Uses `vec3` — so WGSL output renders `array< vec3<f32> >`.
  */
 export function buildDumpKernel({ pbo }: { pbo: boolean }) {
   const positionBuffer = instancedArray(1024, "vec3").setName("positionBuffer");
   const velocityBuffer = instancedArray(1024, "vec3").setName("velocityBuffer");
 
-  // Rastgele indeksle okunan TEK tampon konum tamponu — simülasyondaki kuralın aynısı.
+  // The single buffer read with random index is positionBuffer — same rule as simulation.
   if (pbo) positionBuffer.setPBO(true);
 
   return Fn(() => {
@@ -91,7 +91,7 @@ export function buildDumpKernel({ pbo }: { pbo: boolean }) {
   })().compute(1024);
 }
 
-/** `.toReadOnly()` kanıtı için ayrı, tek tamponlu kernel. */
+/** Separate single-buffer kernel demonstrating `.toReadOnly()`. */
 export function buildReadOnlyKernel() {
   const positionBuffer = instancedArray(1024, "vec3").setName("positionBuffer");
   const morphTarget = instancedArray(1024, "vec3").setName("morphTarget").toReadOnly();
@@ -112,7 +112,7 @@ export function countMatches(source: string, pattern: RegExp): number {
   return matches === null ? 0 : matches.length;
 }
 
-/** WebGL2 yolunda yazma transform feedback varying'lerinden gidiyor; adlarını topluyoruz. */
+/** In WebGL2 path, writes use transform feedback varyings; collect their names. */
 export function transformVaryings(kernel: unknown): string[] {
   const builder = makeBuilder(kernel, true);
   builder.build();
@@ -162,8 +162,8 @@ async function main(): Promise<void> {
 }
 
 /**
- * İkinci döküm: uygulamanın GERÇEK `step` kernel'ı. Ayrı modül grafiği kullandığı
- * için (bkz. `tools/dumpSimulation.ts`) dinamik import ediliyor.
+ * Second dump: real `step` kernel of application. Dynamically imported
+ * because it uses a separate module graph (see `tools/dumpSimulation.ts`).
  */
 async function dumpRealKernel(writeFile: typeof import("node:fs/promises").writeFile) {
   const { buildStepKernel, dumpSimulation, DUMP_COUNT } = await import("./dumpSimulation");
@@ -187,7 +187,7 @@ async function dumpRealKernel(writeFile: typeof import("node:fs/promises").write
       readOnly: countMatches(wgsl, /var<storage, read>/g),
       hasNeighbourRead: wgsl.includes(partner),
       hasBoundsGuard: /if \( instanceIndex >= .+ \) \{ return; \}/.test(wgsl),
-      // Dallanma yok: morph maliyetinin sabit çıkması buna bağlı.
+      // Branchless: morph cost being constant depends on this.
       branchless: countMatches(wgsl, /\bif\s*\(/g) === 1,
     },
     glslOn: {
@@ -208,9 +208,8 @@ async function dumpRealKernel(writeFile: typeof import("node:fs/promises").write
   };
 }
 
-// vite-node altında `process.argv` yalnız [node, vite-node] içeriyor — giriş dosyasının
-// adı orada yok. Bu yüzden "doğrudan mı çalıştırıldım" sorusunu tersinden soruyoruz:
-// vitest bu modülü import ettiğinde `VITEST` dolu olur ve döküm yan etkisi çalışmaz.
+// Under vite-node `process.argv` only contains [node, vite-node].
+// When vitest imports this module, `VITEST` is defined so side effect does not run.
 if (process.env.VITEST === undefined) {
   await main();
 }

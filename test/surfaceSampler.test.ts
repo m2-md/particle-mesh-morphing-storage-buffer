@@ -1,19 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { BufferAttribute, BufferGeometry, PlaneGeometry, SphereGeometry } from "three";
-import { Vector3 } from "three";
+import { BufferAttribute, BufferGeometry, PlaneGeometry, SphereGeometry, Vector3 } from "three";
 import { buildSurfaceSampler } from "../src/sampling/surfaceSampler";
 import { buildUniformTriangleSampler } from "../src/sampling/uniformTriangleSampler";
 import { mulberry32 } from "../src/sampling/rng";
 
 /**
- * Arşimet'in şapka kutusu teoremi: kürenin iki paralel düzlem arasında kalan
- * kuşağının alanı 2π·r·h. `y > 0.8` kepi için h = 0,2, toplam 4π·r².
- * Oran = 2π·1·0,2 / 4π = h / (2r) = 0,1.
+ * Archimedes hat-box theorem: the area of a spherical zone between two parallel planes
+ * is 2π·r·h. For `y > 0.8` polar cap with h = 0.2, total area 4π·r².
+ * Ratio = 2π·1·0.2 / 4π = h / (2r) = 0.1.
  */
 const POLAR_CAP_ANALYTIC = 0.1;
 
-describe("alan-ağırlıklı örnekleme", () => {
-  it("toplam alan 4π'ye ALTTAN yakınsar", () => {
+describe("area-weighted sampling", () => {
+  it("total area converges to 4pi from below", () => {
     const coarse = buildSurfaceSampler(new SphereGeometry(1, 16, 8)).totalArea;
     const fine = buildSurfaceSampler(new SphereGeometry(1, 128, 64)).totalArea;
     const exact = 4 * Math.PI;
@@ -24,7 +23,7 @@ describe("alan-ağırlıklı örnekleme", () => {
     expect(fine).toBeGreaterThan(exact * 0.999);
   });
 
-  it("kutup kepine düşen oran Arşimet'in verdiği sayıya yaklaşır", () => {
+  it("proportion on polar cap approaches Archimedes formula", () => {
     const sampler = buildSurfaceSampler(new SphereGeometry(1, 64, 32));
     const rng = mulberry32(42);
     const p = new Vector3();
@@ -41,7 +40,7 @@ describe("alan-ağırlıklı örnekleme", () => {
     expect(cap / N).toBeLessThan(0.105);
   });
 
-  it("aynı tohum aynı bulutu verir", () => {
+  it("same seed yields same cloud", () => {
     const sampler = buildSurfaceSampler(new SphereGeometry(1, 32, 16));
     const a = new Vector3();
     const b = new Vector3();
@@ -50,9 +49,9 @@ describe("alan-ağırlıklı örnekleme", () => {
     expect(a.equals(b)).toBe(true);
   });
 
-  it("tek üçgende toplam alan analitik değere eşit", () => {
+  it("total area of single triangle equals analytic value", () => {
     const geometry = new BufferGeometry();
-    // (0,0,0) (1,0,0) (0,1,0) -> alan 0,5
+    // (0,0,0) (1,0,0) (0,1,0) -> area 0.5
     geometry.setAttribute(
       "position",
       new BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]), 3),
@@ -62,14 +61,14 @@ describe("alan-ağırlıklı örnekleme", () => {
     expect(sampler.totalArea).toBeCloseTo(0.5, 10);
   });
 
-  it("üçgen sayısı indexed geometride index/3", () => {
+  it("triangle count in indexed geometry is index/3", () => {
     const geometry = new SphereGeometry(1, 64, 32);
     const index = geometry.getIndex();
     expect(index).not.toBeNull();
     expect(buildSurfaceSampler(geometry).triangleCount).toBe(index!.count / 3);
   });
 
-  it("non-indexed geometride de çalışır", () => {
+  it("operates on non-indexed geometry as well", () => {
     const geometry = new PlaneGeometry(2, 2, 1, 1).toNonIndexed();
     expect(geometry.getIndex()).toBeNull();
 
@@ -81,13 +80,13 @@ describe("alan-ağırlıklı örnekleme", () => {
     const p = new Vector3();
     for (let i = 0; i < 500; i++) {
       sampler.sample(rng, p);
-      expect(Math.abs(p.z)).toBeLessThan(1e-6); // düzlem z = 0
+      expect(Math.abs(p.z)).toBeLessThan(1e-6); // plane z = 0
       expect(Math.abs(p.x)).toBeLessThanOrEqual(1 + 1e-6);
       expect(Math.abs(p.y)).toBeLessThanOrEqual(1 + 1e-6);
     }
   });
 
-  it("üretilen nokta küre yüzeyinde: yarıçap 1'e yakın", () => {
+  it("generated point is on sphere surface: radius close to 1", () => {
     const sampler = buildSurfaceSampler(new SphereGeometry(1, 128, 64));
     const rng = mulberry32(11);
     const p = new Vector3();
@@ -98,7 +97,7 @@ describe("alan-ağırlıklı örnekleme", () => {
     }
   });
 
-  it("üçgen başına DÜZGÜN seçim kutupları şişiriyor: analitik sayının çok üstünde", () => {
+  it("uniform selection per triangle inflates poles far above analytic expectation", () => {
     const sampler = buildUniformTriangleSampler(new SphereGeometry(1, 64, 32));
     const rng = mulberry32(42);
     const p = new Vector3();
@@ -110,12 +109,12 @@ describe("alan-ağırlıklı örnekleme", () => {
       if (p.y > 0.8) cap++;
     }
 
-    // Beklenti testi: yanlış örnekleyici 0,1 bandını AŞMALI.
+    // Biased sampler must exceed 0.1 band.
     expect(cap / N).toBeGreaterThan(0.15);
     expect(cap / N).toBeGreaterThan(POLAR_CAP_ANALYTIC * 1.5);
   });
 
-  it("iki örnekleyici de aynı toplam alanı hesaplıyor", () => {
+  it("both samplers calculate same total area", () => {
     const geometry = new SphereGeometry(1, 32, 16);
     expect(buildUniformTriangleSampler(geometry).totalArea).toBeCloseTo(
       buildSurfaceSampler(geometry).totalArea,

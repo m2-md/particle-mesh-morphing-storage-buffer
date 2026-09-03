@@ -11,22 +11,22 @@ export interface BufferLike {
 
 export function bufferReport(node: BufferLike): BufferReport {
   return {
-    itemSize: node.value.itemSize, // ilk kareden önce 3, sonra 4 olabilir
+    itemSize: node.value.itemSize, // may be 3 before first frame, 4 afterwards
     count: node.value.count,
     arrayLength: node.value.array.length,
     bytes: node.value.array.length * 4,
   };
 }
 
-/** Simülasyonun tuttuğu tampon sayısı: konum, hız, kaynak hedef, varış hedefi. */
+/** Number of buffers maintained by simulation: position, velocity, source target, dest target. */
 export const BUFFER_COUNT = 4;
 
 export interface VramRow {
   count: number;
-  /** `vec4` tampon: eleman başına 16 bayt. */
+  /** `vec4` buffer: 16 bytes per element. */
   perBufferBytes: number;
   totalBytes: number;
-  /** Dolgu olmasaydı `vec3` tamponların tutacağı yer: eleman başına 12 bayt. */
+  /** Space that `vec3` buffers would have consumed without padding: 12 bytes per element. */
   vec3Bytes: number;
   deltaBytes: number;
 }

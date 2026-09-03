@@ -4,7 +4,7 @@ import type { BufferGeometry } from "three";
 export interface SurfaceSampler {
   readonly triangleCount: number;
   readonly totalArea: number;
-  /** rng(): [0,1) — dışarıdan verilir ki tohumlanabilsin. */
+  /** rng(): [0,1) — passed externally so it can be seeded. */
   sample(rng: () => number, target: Vector3): Vector3;
 }
 
@@ -13,8 +13,8 @@ export function buildSurfaceSampler(geometry: BufferGeometry): SurfaceSampler {
   const index = geometry.getIndex();
   const triangleCount = index ? index.count / 3 : position.count / 3;
 
-  // Kümülatif toplam Float64: 32 bit, on binlerce küçük alanı topladığınızda
-  // sonlara doğru artışı yutmaya başlıyor ve son üçgenler seçilemez hâle geliyor.
+  // Cumulative sum in Float64: with 32-bit floats, summing tens of thousands
+  // of small areas starts swallowing increments near the end and makes final triangles unselectable.
   const cumulative = new Float64Array(triangleCount);
 
   const a = new Vector3();

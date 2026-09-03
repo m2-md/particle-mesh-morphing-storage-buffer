@@ -5,7 +5,7 @@ import type { StorageBufferNode } from "three/webgpu";
 export function createParticles(positionBuffer: StorageBufferNode<"vec4">, count: number) {
   const material = new SpriteNodeMaterial({ transparent: true, depthWrite: false });
 
-  // Kopya yok: compute'un yazdığı tamponun ta kendisi vertex girdisi oluyor.
+  // Zero-copy: compute-written buffer directly serves as vertex input.
   const position = positionBuffer.toAttribute();
   material.positionNode = position.xyz;
   material.scaleNode = float(0.012);
@@ -13,7 +13,7 @@ export function createParticles(positionBuffer: StorageBufferNode<"vec4">, count
 
   const particles = new Sprite(material);
   particles.count = count;
-  // Konumlar CPU'nun bilmediği bir tamponda; bounding sphere yalan söyler.
+  // Position resides in buffer unknown to CPU; bounding sphere would be inaccurate.
   particles.frustumCulled = false;
 
   return particles;

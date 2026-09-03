@@ -1,4 +1,4 @@
-/** Konum tamponunun düzen bağımsız özeti: bit deseni toplamı. */
+/** Order-independent checksum of position buffer: sum of bit patterns. */
 export function positionChecksum(data: Float32Array): number {
   const view = new Uint32Array(data.buffer, data.byteOffset, data.length);
   let h = 0x811c9dc5;

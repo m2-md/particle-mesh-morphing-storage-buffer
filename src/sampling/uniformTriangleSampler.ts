@@ -3,12 +3,12 @@ import type { BufferGeometry } from "three";
 import type { SurfaceSampler } from "./surfaceSampler";
 
 /**
- * KONTROL GRUBU — kasten yanlış örnekleyici.
+ * CONTROL GROUP — intentionally biased sampler.
  *
- * Tek farkı üçgeni alanla orantılı değil, DÜZGÜN olasılıkla seçmesi.
- * Küre gibi kutuplara doğru üçgenleri küçülen bir geometride bu, kutuplarda
- * aşırı yoğunluk üretiyor. Makaledeki "Kutup Tuzağı" bölümünün ölçüm kaynağı.
- * Üretimde kullanılmıyor; yalnız bench ve testlerde referans olarak duruyor.
+ * Only difference is picking triangles with UNIFORM probability rather than area-weighted.
+ * For geometry whose triangles shrink near poles (like a sphere), this generates excessive
+ * density at poles. Measurement baseline for the "Polar Trap" section of the article.
+ * Not used in production; retained solely as a reference in benchmarks and tests.
  */
 export function buildUniformTriangleSampler(geometry: BufferGeometry): SurfaceSampler {
   const position = geometry.getAttribute("position");
@@ -39,7 +39,7 @@ export function buildUniformTriangleSampler(geometry: BufferGeometry): SurfaceSa
     triangleCount,
     totalArea: total,
     sample(rng, target) {
-      // Alan yok sayılıyor: her üçgen eşit olasılıkla seçiliyor.
+      // Area ignored: every triangle selected with equal probability.
       const t = Math.min(triangleCount - 1, Math.floor(rng() * triangleCount));
 
       a.fromBufferAttribute(position, vertexOf(t, 0));

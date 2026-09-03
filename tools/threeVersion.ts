@@ -1,6 +1,6 @@
 /**
- * three'nin `exports` haritasında `./package.json` YOK; `require("three/package.json")`
- * `ERR_PACKAGE_PATH_NOT_EXPORTED` fırlatır. Sürümü paketin çözülen dosya yolundan okuyoruz.
+ * three's `exports` map lacks `./package.json`; `require("three/package.json")`
+ * throws `ERR_PACKAGE_PATH_NOT_EXPORTED`. We read version from resolved file path.
  */
 export async function readThreeVersion(): Promise<string> {
   const { readFile } = await import("node:fs/promises");

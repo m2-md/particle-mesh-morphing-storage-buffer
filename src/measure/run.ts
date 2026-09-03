@@ -51,7 +51,7 @@ export interface MeasureReport {
     off: number;
     on: number;
     broken: number;
-    /** Her yapılandırma iki kez koşuluyor; ikisi eşitse `true`. */
+    /** Every configuration runs twice; true if both are equal. */
     repeatable: { off: boolean; on: boolean; broken: boolean };
     brokenEqualsOff: boolean;
     brokenEqualsOn: boolean;
@@ -99,7 +99,7 @@ async function runBlock(app: ParticleApp, warmup: number, frames: number): Promi
     app.renderFrame();
     previous = await nextFrame();
   }
-  await app.timings(); // ısınma örnekleri sayılmıyor
+  await app.timings(); // warmup samples excluded
 
   for (let i = 0; i < frames; i++) {
     cpuSamples.push(app.renderFrame());
@@ -121,10 +121,10 @@ async function runBlock(app: ParticleApp, warmup: number, frames: number): Promi
 }
 
 /**
- * Her yapılandırma KENDİ renderer'ında koşuyor: aynı oturumda yeniden kurulan
- * bir simülasyonun geri okuması three'nin WebGL2 yolunda önbelleğe takılıyor.
- * `trackTimestamp` kapalı, çünkü 240 ardışık compute zaman damgası havuzunu
- * (2048 sorgu) doldurup uyarı bastırıyor; bu blokta zamanlama yok zaten.
+ * Every configuration runs in its OWN renderer: readback of a re-instantiated
+ * simulation in the same session hits caching issues in three's WebGL2 path.
+ * `trackTimestamp` is disabled because 240 consecutive compute queries exhaust the pool
+ * (2048 queries) and trigger warnings; this block does not need timing anyway.
  */
 async function checksumFor(
   forceWebGL: boolean,
@@ -151,9 +151,9 @@ function maxAbsDiff(a: Float32Array, b: Float32Array): number {
 }
 
 /**
- * Deterministik ölçüm koşusu (`?measure=1&backend=…`).
- * Etkileşim kapalı, arka tampon 960×540'a kilitli, tohumlar sabit,
- * morph animasyonu kapalı. Sonunda konsola TEK satır düşüyor.
+ * Deterministic measurement run (`?measure=1&backend=…`).
+ * Interaction disabled, back buffer locked to 960×540, fixed seeds,
+ * morph animation disabled. Emits single line to console at conclusion.
  */
 export async function runMeasurement(
   canvas: HTMLCanvasElement,
@@ -168,7 +168,7 @@ export async function runMeasurement(
   app.resize(MEASURE_WIDTH, MEASURE_HEIGHT);
   app.setMorphT(0);
 
-  // 1. Hız
+  // 1. Speed
   const speed: SpeedRow[] = [];
   for (const count of COUNTS) {
     await app.rebuild(count, "on");
@@ -177,7 +177,7 @@ export async function runMeasurement(
     speed.push({ count, ...result });
   }
 
-  // 2. Bağ maliyeti
+  // 2. Bond cost
   await app.rebuild(COUNTS[0], "off");
   app.setMorphT(0);
   const bondOff = await runBlock(app, WARMUP_FRAMES, MEASURE_FRAMES);
@@ -185,16 +185,16 @@ export async function runMeasurement(
   app.setMorphT(0);
   const bondOn = await runBlock(app, WARMUP_FRAMES, MEASURE_FRAMES);
 
-  // 3. Morph maliyeti — aynı kernel, yalnız uniform değişiyor.
+  // 3. Morph cost — same kernel, only uniform changes.
   const morphBlocks: BlockResult[] = [];
   for (const t of [0, 0.5, 1]) {
     app.setMorphT(t);
     morphBlocks.push(await runBlock(app, WARMUP_FRAMES, MEASURE_FRAMES));
   }
 
-  // 4. Checksum — zamanlama yok, yalnız sonuç. Her yapılandırma İKİ kez koşuyor:
-  // WebGPU'da eş okuması ile eş yazması arasında senkronizasyon yok, sonuç
-  // koşudan koşuya değişebiliyor. Tekrarlanabilirlik ölçülen bir şey, varsayılan değil.
+  // 4. Checksum — no timing, purely outcome. Every configuration runs twice:
+  // In WebGPU without synchronization between partner read/write, outcome may vary across runs.
+  // Repeatability is measured, not assumed.
   const wgl = options.forceWebGL;
   const off = await checksumFor(wgl, COUNTS[0], "off");
   const offRepeat = await checksumFor(wgl, COUNTS[0], "off");
@@ -206,7 +206,7 @@ export async function runMeasurement(
   const checksumOn = positionChecksum(on);
   const checksumBroken = positionChecksum(broken);
 
-  // 5. Kurulum donması — ilk koşu soğuk derleme, ikinci koşu önbellekli.
+  // 5. Rebuild stall — first run is cold compile, second run is cached.
   const rebuild: MeasureReport["rebuild"] = [];
   for (const count of COUNTS) {
     const first = await app.rebuild(count, "on");
@@ -220,7 +220,7 @@ export async function runMeasurement(
     });
   }
 
-  // 6. vec3 dolgusu kanıtı
+  // 6. vec3 padding verification
   const buffer = await probeVec3Padding(app.renderer);
 
   const report: MeasureReport = {
@@ -288,8 +288,6 @@ function adapterName(app: ParticleApp): string {
     description?: string;
   }
 
-  // three `adapter`'ı saklamıyor (WebGPUBackend.js:217 yerel değişken), ama
-  // `device.adapterInfo` spesifikasyonda var ve backend cihazı tutuyor.
   const backend = app.renderer.backend as unknown as {
     adapter?: { info?: AdapterInfo };
     device?: { adapterInfo?: AdapterInfo };
@@ -310,5 +308,5 @@ function adapterName(app: ParticleApp): string {
     if (ext !== null) return String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL));
   }
 
-  return "bilinmiyor";
+  return "unknown";
 }

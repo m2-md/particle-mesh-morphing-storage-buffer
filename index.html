@@ -1,17 +1,17 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tek Çekirdek, İki Shader — TSL compute ile mesh morph'u</title>
+    <title>Particle Mesh-to-Mesh Morphing with WebGPU TSL Compute</title>
   </head>
   <body>
     <main>
-      <h1>Tek çekirdek, iki shader</h1>
+      <h1>One Kernel, Two Shaders</h1>
       <p class="lede">
-        Parçacık konumları GPU'da bir <code>instancedArray</code> içinde yaşıyor. Aynı TSL kernel'ı
-        WebGPU'da <code>var&lt;storage, read_write&gt;</code>, WebGL2'de transform feedback +
-        <code>texelFetch</code> olarak derleniyor.
+        Particle positions reside on GPU inside an <code>instancedArray</code>. The same TSL kernel
+        compiles to <code>var&lt;storage, read_write&gt;</code> in WebGPU, and to transform feedback +
+        <code>texelFetch</code> in WebGL2.
       </p>
 
       <div class="stage-box">
@@ -20,7 +20,7 @@
 
       <div class="controls">
         <div class="control" id="count">
-          <span class="label">Parçacık</span>
+          <span class="label">Particles</span>
           <button data-count="100000" class="active">100k</button>
           <button data-count="200000">200k</button>
           <button data-count="500000">500k</button>
@@ -28,30 +28,30 @@
 
         <div class="control">
           <span class="label">Morph</span>
-          <button id="morph">Küre ⇄ Burgu düğümü</button>
+          <button id="morph">Sphere ⇄ Trefoil knot</button>
         </div>
 
         <div class="control">
-          <span class="label">Eş bağı</span>
+          <span class="label">Pair bond</span>
           <select id="bond">
-            <option value="off">Kapalı</option>
-            <option value="on" selected>Açık</option>
-            <option value="broken">Açık (PBO'suz)</option>
+            <option value="off">Off</option>
+            <option value="on" selected>On</option>
+            <option value="broken">On (No PBO)</option>
           </select>
         </div>
 
         <div class="control">
-          <span class="label">Çözünürlük ölçeği</span>
+          <span class="label">Resolution scale</span>
           <select id="scale">
-            <option value="0.35">0,35</option>
-            <option value="0.5" selected>0,50</option>
-            <option value="0.75">0,75</option>
-            <option value="1">1,00</option>
+            <option value="0.35">0.35</option>
+            <option value="0.5" selected>0.50</option>
+            <option value="0.75">0.75</option>
+            <option value="1">1.00</option>
           </select>
         </div>
 
         <div class="control">
-          <button id="toggle">Dur</button>
+          <button id="toggle">Pause</button>
           <a id="backend" href="?backend=webgl2">Backend</a>
         </div>
       </div>

@@ -9,7 +9,7 @@ import { createParticles } from "./sim/renderable";
 import { bufferReport, toMb, vramTable, type BufferReport } from "./measure/vram";
 import { readTimestamps, hasTimestamps } from "./measure/gpuTimer";
 
-/** Delta-zaman YOK: ölçüm modunun deterministik olması buna bağlı. */
+/** Delta-time zero: deterministic measurement relies on this. */
 export const SUBSTEPS = 2;
 export const SOURCE_SEED = 1;
 export const TARGET_SEED = 2;
@@ -20,8 +20,8 @@ export interface AppOptions {
   count: number;
   bond: BondMode;
   /**
-   * Zaman damgası havuzu 2048 sorguda doluyor ve çözülmezse three uyarı basıyor.
-   * Uzun compute serileri (checksum bloğu) için kapatılıyor.
+   * Timestamp pool fills after 2048 queries; three warns if unresolved.
+   * Disabled for long compute runs (checksum block).
    */
   trackTimestamp?: boolean;
 }
@@ -53,7 +53,7 @@ export async function createApp(options: AppOptions) {
   });
   await renderer.init();
 
-  // `forceWebGL: true` HİÇBİR uyarı basmıyor; hangi yolda olduğumuzu kendimiz soruyoruz.
+  // `forceWebGL: true` emits no warning; we query which path we are on.
   const backend = backendName(renderer);
 
   const scene = new Scene();
@@ -86,11 +86,10 @@ export async function createApp(options: AppOptions) {
       scene.remove(particles);
       particles.material.dispose();
     }
-    // Eski compute node'larını AT. `Renderer.compute()` her ComputeNode için bir
-    // `dispose` dinleyicisi kuruyor (Renderer.js:2769) ve pipeline/binding
-    // önbelleğini o dinleyici temizliyor. Atmazsak WebGL2 yolunda `init`
-    // programı (kaynağı sayıdan bağımsız, yani birebir aynı) önbellekten
-    // dönüyor ve VAO'da HÂLÂ eski, küçük tampon bağlı kalıyor:
+    // DISPOSE old compute nodes. `Renderer.compute()` sets up a `dispose`
+    // listener for each ComputeNode (Renderer.js:2769), which clears pipeline/binding cache.
+    // If not disposed, on WebGL2 path `init` program (count-independent source) returns from cache
+    // while VAO STILL retains old small buffer:
     // `glDrawArraysInstanced: Vertex buffer is not big enough for the draw call.`
     if (sim !== null) {
       (sim.init as unknown as Disposable).dispose();
@@ -109,7 +108,7 @@ export async function createApp(options: AppOptions) {
   await rebuild(count, bond);
 
   function requireSim(): Simulation {
-    if (sim === null) throw new Error("simülasyon kurulmadı");
+    if (sim === null) throw new Error("simulation not initialized");
     return sim;
   }
 
@@ -148,7 +147,7 @@ export async function createApp(options: AppOptions) {
       camera.updateProjectionMatrix();
     },
 
-    /** Bir kare: sabit alt adım sayısı kadar compute, sonra render. */
+    /** One frame: fixed number of substeps of compute, then render. */
     renderFrame(): number {
       const current = requireSim();
       const start = performance.now();
@@ -161,16 +160,16 @@ export async function createApp(options: AppOptions) {
       return readTimestamps(renderer);
     },
 
-    /** Yalnız compute; ölçüm modunun checksum bloğu bunu kullanıyor. */
+    /** Compute only; used by checksum block in measurement mode. */
     step(times: number): void {
       const current = requireSim();
       for (let i = 0; i < times; i++) renderer.compute(current.step);
     },
 
     /**
-     * Konum tamponunu GPU'dan geri okur. WebGL2 yolunda three tamponu PBO
-     * dokusuna sığdırmak için BÜYÜTÜYOR (100.000 vec4 -> 100.352); iki backend'in
-     * özetleri kıyaslanabilsin diye ilk `count * 4` elemanı kesiyoruz.
+     * Reads back position buffer from GPU. On WebGL2 path, three enlarges the buffer
+     * to fit PBO texture dimensions (100,000 vec4 -> 100,352); we slice the first
+     * `count * 4` elements so checksums are comparable across backends.
      */
     async readPositions(): Promise<Float32Array> {
       const data = (await renderer.getArrayBufferAsync(
@@ -196,9 +195,9 @@ export async function createApp(options: AppOptions) {
 export type ParticleApp = Awaited<ReturnType<typeof createApp>>;
 
 /**
- * `vec3` dolgusunun kanıtı. Uygulamanın kendi tamponları `vec4`; bu tampon
- * yalnız ölçüm için açılıyor ve simülasyona girmiyor.
- * three ilk kullanımda `itemSize`'ı 3'ten 4'e YERİNDE çeviriyor.
+ * Proof of `vec3` padding. Application's own buffers are `vec4`; this buffer
+ * is allocated solely for measurement and not part of simulation.
+ * three mutates `itemSize` IN PLACE from 3 to 4 on first usage.
  */
 export async function probeVec3Padding(renderer: WebGPURenderer): Promise<{
   probe: string;

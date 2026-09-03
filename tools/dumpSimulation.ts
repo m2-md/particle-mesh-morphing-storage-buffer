@@ -1,13 +1,13 @@
 /**
- * GERÇEK simülasyon kernel'ının dökümü — GPU YOK, tarayıcı YOK.
+ * REAL simulation kernel dump — no GPU, no browser.
  *
- * `tools/dumpShaders.ts` her şeyi `three/src` altından alıyor; burası tam tersi:
- * builder'lar `three/webgpu`'dan, kernel `three/tsl`'den geliyor. İkisi de aynı
- * modül grafiği (`build/three.tsl.js` zaten `three/webgpu`'yu re-export ediyor),
- * o yüzden karışım YOK. Yasak olan, iki grafiği tek builder'da buluşturmak.
+ * `tools/dumpShaders.ts` imports everything under `three/src`; here is the exact opposite:
+ * builders come from `three/webgpu`, kernel from `three/tsl`. Both share the same
+ * module graph (`build/three.tsl.js` re-exports `three/webgpu`), so no collision.
+ * What is prohibited is bringing the two graphs together in a single builder.
  *
- * Kazanç: makalenin tezi oyuncak bir kernel üzerinde değil, uygulamanın
- * gerçekten koşturduğu `step` kernel'ı üzerinde sınanıyor.
+ * Benefit: article thesis is tested not on a toy kernel, but on the real `step`
+ * kernel executed by the application.
  */
 import { GLSLNodeBuilder, WGSLNodeBuilder } from "three/webgpu";
 import { context, vec3 } from "three/tsl";
@@ -49,7 +49,7 @@ interface ComputeBuilder {
 
 export const DUMP_COUNT = 1024;
 
-/** Ölçüm/test için sabit boyutlu bir simülasyon kurar. GPU'ya dokunmaz. */
+/** Sets up a fixed-size simulation for measurement/testing. Touches no GPU. */
 export function buildStepKernel(bond: BondMode) {
   const source = new Float32Array(DUMP_COUNT * 4);
   const target = new Float32Array(DUMP_COUNT * 4);

@@ -1,78 +1,78 @@
-# Tek Çekirdek, İki Shader — TSL compute ile mesh'ten mesh'e parçacık morph'u
+# One Kernel, Two Shaders — mesh-to-mesh particle morphing with TSL compute
 
-"Tek Çekirdek, İki Shader: TSL Compute ile Mesh'ten Mesh'e Parçacık Morph'u"
-makalesinin çalışan kodu.
+Working code for the article "One Kernel, Two Shaders: Mesh-to-Mesh Particle Morphing with TSL
+Compute".
 
-Parçacık konumları GPU'da bir `instancedArray` (storage buffer) içinde yaşıyor.
-Hedef bulutları iki mesh yüzeyinden **alan-ağırlıklı CDF örneklemesiyle** çıkıyor.
-**Tek bir TSL kernel'ı** iki backend'e derleniyor:
+The particle positions live on the GPU inside an `instancedArray` (storage buffer). The target
+clouds come out of two mesh surfaces via **area-weighted CDF sampling**. **A single TSL
+kernel** compiles to two backends:
 
-| Backend               | Ne üretiliyor                                                       | Rastgele indeksli okuma   |
-| --------------------- | ------------------------------------------------------------------- | ------------------------- |
-| WebGPU                | `var<storage, read_write>` + `@compute @workgroup_size( 64, 1, 1 )` | tamponun kendisinden      |
-| WebGL2 (`forceWebGL`) | vertex shader + transform feedback varying'leri                     | `texelFetch` (PBO dokusu) |
+| Backend               | What gets generated                                                 | Random-indexed read        |
+| --------------------- | ------------------------------------------------------------------- | -------------------------- |
+| WebGPU                | `var<storage, read_write>` + `@compute @workgroup_size( 64, 1, 1 )` | from the buffer itself     |
+| WebGL2 (`forceWebGL`) | vertex shader + transform feedback varyings                         | `texelFetch` (PBO texture) |
 
-İkisinin dökümü **GPU ve tarayıcı olmadan**, Node'da alınabiliyor — bu yüzden
-makalenin ana iddiaları saf vitest testleriyle çivilenmiş durumda.
+Both can be dumped **without a GPU and without a browser**, in Node — which is why the
+article's main claims are nailed down by pure vitest tests.
 
-Sürüm sabit (caret **yok**, bilerek): `three@0.185.1`. three minor sürümlerde node
-sistemini değiştiriyor ve makale kaynak dosyalarına satır numarasıyla atıf yapıyor.
-React/R3F yok, hazır parçacık/GPGPU kütüphanesi yok, **elle WGSL/GLSL yazılmıyor** —
-shader'lar TSL'den üretiliyor, biz yalnızca döküyoruz.
+The version is pinned (**no** caret, deliberately): `three@0.185.1`. three changes the node
+system across minor versions and the article cites source files by line number. No React/R3F,
+no off-the-shelf particle/GPGPU library, **no hand-written WGSL/GLSL** — the shaders are
+generated from TSL, we only dump them.
 
-## Kurulum
+## Setup
 
 ```bash
 npm install
 ```
 
-`--legacy-peer-deps` gerekmiyor.
+`--legacy-peer-deps` is not needed.
 
-## Çalıştırma
+## Running
 
 ```bash
 npm run dev
 ```
 
-`http://localhost:5173/` — **port sabit** (`vite.config.ts` → `strictPort: true`).
-Port doluysa Vite sessizce kaymak yerine hata verir; aşağıdaki ölçüm URL'leri
-birebir bu adresi gösteriyor. **`file://` ile açmayın**, boş ekran verir.
+`http://localhost:5173/` — the **port is fixed** (`vite.config.ts` → `strictPort: true`). If
+the port is taken, Vite errors out instead of silently shifting; the measurement URLs below
+point at exactly this address. **Do not open it with `file://`**, you get a blank screen.
 
-### Demo kontrolleri
+### Demo controls
 
-| Kontrol           | Değerler                                                         | Varsayılan |
-| ----------------- | ---------------------------------------------------------------- | ---------- |
-| Parçacık sayısı   | 100k / 200k / 500k                                               | **100k**   |
-| Morph             | küre ⇄ burgu düğümü geçişini tetikler                            | küre       |
-| Eş bağı           | Kapalı / Açık / **Açık (PBO'suz)**                               | Açık       |
-| Çözünürlük ölçeği | 0,35 / 0,50 / 0,75 / 1,00                                        | **0,50**   |
-| Dur/Devam         | —                                                                | Çalışıyor  |
-| Backend           | sayfayı `?backend=webgpu` / `?backend=webgl2` ile yeniden yükler | otomatik   |
+| Control          | Values                                                            | Default    |
+| ---------------- | ----------------------------------------------------------------- | ---------- |
+| Particles        | 100k / 200k / 500k                                                | **100k**   |
+| Morph            | triggers the sphere ⇄ trefoil knot transition                     | sphere     |
+| Pair bond        | Off / On / **On (No PBO)**                                        | On         |
+| Resolution scale | 0.35 / 0.50 / 0.75 / 1.00                                         | **0.50**   |
+| Pause/Resume     | —                                                                 | Running    |
+| Backend          | reloads the page with `?backend=webgpu` / `?backend=webgl2`       | automatic  |
 
-`devicePixelRatio` 2'ye kelepçeli (`src/viewport.ts`), sekme gizlenince döngü
-duruyor (`visibilitychange`), HUD **YAPISAL / ÖLÇÜM** diye ikiye ayrılmış ve
-backend rozetini `renderer.backend.isWebGLBackend`'den okuyor —
-`renderer.isWebGPURenderer`'dan **değil**: ikincisi `forceWebGL` dalında da `true`
-döner ve rozete yalan söyletir.
+`devicePixelRatio` is clamped to 2 (`src/viewport.ts`), the loop stops when the tab is hidden
+(`visibilitychange`), the HUD is split in two as **STRUCTURAL / METRIC**, and it reads the
+backend badge from `renderer.backend.isWebGLBackend` — **not** from
+`renderer.isWebGPURenderer`: the latter returns `true` on the `forceWebGL` branch too and would
+make the badge lie.
 
-Parçacık sayısını değiştirmek iki mesh'i yeniden örnekliyor ve dört tamponu
-yeniden kuruyor. Bu **ana iş parçacığını dondurur** ve donma bilerek gizlenmiyor:
-süresi HUD'daki "Son kurulum donması" satırına yazılıyor (bu makinede 500k'da
-~220 ms, ~190 ms'i örnekleme).
+Changing the particle count re-samples both meshes and rebuilds four buffers. This **freezes
+the main thread**, and the freeze is deliberately not hidden: its duration is written to the
+"Last rebuild stall" row of the HUD (on this machine ~220 ms at 500k, ~190 ms of it sampling).
 
-### "Açık (PBO'suz)" seçeneği BİLEREK BOZUK
+### The "On (No PBO)" option is DELIBERATELY BROKEN
 
-`src/sim/simulation.ts` içindeki `bond` modu üç durumlu:
+The `bond` mode inside `src/sim/simulation.ts` has three states:
 
-| `bond`     | `setPBO(true)` | `bondPull` | Davranış                                               |
-| ---------- | -------------- | ---------- | ------------------------------------------------------ |
-| `"off"`    | çağrılmaz      | `0`        | eş kuvveti yok                                         |
-| `"on"`     | **çağrılır**   | `0.0008`   | eş kuvveti iki backend'de de çalışır                   |
-| `"broken"` | **çağrılmaz**  | `0.0008`   | WebGPU'da `"on"` gibi; WebGL2'de sessizce `"off"` gibi |
+| `bond`     | `setPBO(true)` | `bondPull` | Behaviour                                                |
+| ---------- | -------------- | ---------- | -------------------------------------------------------- |
+| `"off"`    | not called     | `0`        | no pair force                                            |
+| `"on"`     | **called**     | `0.0008`   | the pair force works on both backends                    |
+| `"broken"` | **not called** | `0.0008`   | like `"on"` on WebGPU; silently like `"off"` on WebGL2   |
 
-`"broken"` bir bug değil, makalenin kanıtı: WebGL2'de `.setPBO(true)` verilmezse
-komşu okuması **sessizce** parçacığın kendi değerine çöküyor. Hata yok, uyarı yok,
-konsol temiz, sonuç yanlış. Ölçüm modu bunu bir checksum'la kanıtlıyor (aşağıda).
+`"broken"` is not a bug, it is the article's evidence: on WebGL2, if `.setPBO(true)` is not
+given, the neighbour read **silently** collapses to the particle's own value. No error, no
+warning, a clean console, a wrong result. The measurement mode proves this with a checksum
+(below).
 
 ## Test
 
@@ -80,55 +80,56 @@ konsol temiz, sonuç yanlış. Ölçüm modu bunu bir checksum'la kanıtlıyor (
 npm test
 ```
 
-**94 test yeşil** (11 dosya). Hiçbiri `document`, `window`, `navigator`,
-`WebGL2RenderingContext` ya da `GPUDevice` kullanmıyor: headless vitest'te GPU yok.
-Shader testleri bile GPU açmıyor — sahte bir renderer nesnesiyle `WGSLNodeBuilder`
-ve `GLSLNodeBuilder` doğrudan Node'da koşuyor.
+**94 tests green** (11 files). None of them uses `document`, `window`, `navigator`,
+`WebGL2RenderingContext` or `GPUDevice`: there is no GPU in headless vitest. Even the shader
+tests do not open a GPU — `WGSLNodeBuilder` and `GLSLNodeBuilder` run directly in Node against
+a fake renderer object.
 
-| Dosya                      | Test | Neyi çiviliyor                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| -------------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shaders.test.ts`          | 16   | Aynı kernel iki backend: WGSL'de `var<storage, read_write>` + eş okuması + TSL'in kendi ürettiği sınır koruması; GLSL'de `texelFetch` **yalnız** PBO açıkken; PBO'suz dalda eş okumasının `nodeVarying0 - nodeVarying0`'a çökmesi; `@compute @workgroup_size( 64`; `.toReadOnly()` → `var<storage, read>`; transform feedback varying adları; döküm gövdesinin gerçekten dolu olması (`three/tsl` ↔ `three/src` karışım regresyonu) |
-| `simulationShader.test.ts` | 16   | Aynı iddialar **uygulamanın gerçek `step` kernel'ı** üzerinde: 5 binding (2 read_write + 2 read + 1 uniform), `1023u - instanceIndex` eş okuması, dallanmasızlık (tek `if`), `bond` modlarının sampler sayısını değiştirmesi                                                                                                                                                                                                        |
-| `surfaceSampler.test.ts`   | 9    | Toplam alanın `4π`'ye **alttan** yakınsaması; kutup kepi oranının Arşimet'in verdiği `0,1`'e düşmesi; düzgün-üçgen seçiminin aynı bandı **aşması**; tek üçgende analitik alan; indexed/non-indexed dallar; üretilen noktanın yüzeyde durması                                                                                                                                                                                        |
-| `pickTriangle.test.ts`     | 8    | Binary search sınırları: `x = 0` → ilk üçgen, `x = total` → son üçgen, kümülatif sınıra tam denk gelen değer bir sonrakini seçmez                                                                                                                                                                                                                                                                                                   |
-| `vram.test.ts`             | 8    | `vec4` tampon eleman başına 16 bayt, `vec3` sanılan 12; fark pozitif; `bufferReport` alanları girdiden birebir                                                                                                                                                                                                                                                                                                                      |
-| `checksum.test.ts`         | 7    | FNV-1a: aynı girdi aynı çıktı, tek bitlik fark farklı çıktı, `Uint32Array` görünümü orijinali bozmaz                                                                                                                                                                                                                                                                                                                                |
-| `sampleGeometry.test.ts`   | 7    | Çıktı uzunluğu `count * 4`, w bileşeni `[0,1)`, aynı tohum bit-birebir aynı dizi, hiçbir değer `NaN` değil                                                                                                                                                                                                                                                                                                                          |
-| `stats.test.ts`            | 7    | Medyan/yüzdelik; boş dizide `NaN` (0 **değil**); girdi dizisi mutasyona uğramaz                                                                                                                                                                                                                                                                                                                                                     |
-| `viewport.test.ts`         | 6    | `MAX_DPR = 2` kelepçesi, ölçek `[0.25, 1]`, sonuç asla 0                                                                                                                                                                                                                                                                                                                                                                            |
-| `rng.test.ts`              | 5    | `mulberry32` aralığı, tekrar üretilebilirliği, farklı tohumun farklı dizi vermesi                                                                                                                                                                                                                                                                                                                                                   |
-| `backendName.test.ts`      | 5    | Rozet backend bayrağını okur, `isWebGPURenderer`'ı değil                                                                                                                                                                                                                                                                                                                                                                            |
+| File                       | Tests | What it nails down                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `shaders.test.ts`          | 16    | The same kernel on two backends: in WGSL `var<storage, read_write>` + the neighbour read + the bounds guard TSL generates on its own; in GLSL `texelFetch` **only** when PBO is on; on the no-PBO branch the neighbour read collapsing into `nodeVarying0 - nodeVarying0`; `@compute @workgroup_size( 64`; `.toReadOnly()` → `var<storage, read>`; transform feedback varying names; the dump body actually being full (the `three/tsl` ↔ `three/src` mixing regression) |
+| `simulationShader.test.ts` | 16    | The same claims on **the application's real `step` kernel**: 5 bindings (2 read_write + 2 read + 1 uniform), the `1023u - instanceIndex` neighbour read, branchlessness (a single `if`), the `bond` modes changing the sampler count                                                                                                                                                                                            |
+| `surfaceSampler.test.ts`   | 9     | The total area converging on `4π` **from below**; the polar cap ratio landing on the `0.1` Archimedes gives; uniform-per-triangle selection **overshooting** the same band; the analytic area of a single triangle; the indexed/non-indexed branches; the generated point lying on the surface                                                                                                                                  |
+| `pickTriangle.test.ts`     | 8     | Binary search boundaries: `x = 0` → the first triangle, `x = total` → the last triangle, a value landing exactly on a cumulative boundary does not select the next one                                                                                                                                                                                                                                                        |
+| `vram.test.ts`             | 8     | 16 bytes per `vec4` buffer element, versus the 12 you assume for `vec3`; the difference is positive; `bufferReport` fields come through from the input verbatim                                                                                                                                                                                                                                                               |
+| `checksum.test.ts`         | 7     | FNV-1a: same input same output, a one-bit difference gives a different output, the `Uint32Array` view does not corrupt the original                                                                                                                                                                                                                                                                                            |
+| `sampleGeometry.test.ts`   | 7     | Output length is `count * 4`, the w component is in `[0,1)`, the same seed gives a bit-identical array, no value is `NaN`                                                                                                                                                                                                                                                                                                     |
+| `stats.test.ts`            | 7     | Median/percentile; `NaN` (**not** 0) on an empty array; the input array is not mutated                                                                                                                                                                                                                                                                                                                                        |
+| `viewport.test.ts`         | 6     | The `MAX_DPR = 2` clamp, scale `[0.25, 1]`, the result is never 0                                                                                                                                                                                                                                                                                                                                                             |
+| `rng.test.ts`              | 5     | `mulberry32`'s range, its reproducibility, a different seed giving a different sequence                                                                                                                                                                                                                                                                                                                                       |
+| `backendName.test.ts`      | 5     | The badge reads the backend flag, not `isWebGPURenderer`                                                                                                                                                                                                                                                                                                                                                                      |
 
-## Tip kontrolü ve derleme
+## Type checking and build
 
 ```bash
-npx tsc --noEmit   # 0 hata
+npx tsc --noEmit   # 0 errors
 npm run build      # tsc && vite build → dist/
 ```
 
-`vite build`'in geçmesi shader'ın **çalıştığını** kanıtlamıyor: WGSL/GLSL çalışma
-anında üretiliyor. Tarayıcı doğrulaması zorunlu.
+`vite build` passing does not prove the shader **works**: WGSL/GLSL is generated at runtime.
+Browser verification is mandatory.
 
-## Node tarafı ölçümler (GPU yok)
+## Node-side measurements (no GPU)
 
-### `npm run shaders` — shader dökümü
+### `npm run shaders` — shader dump
 
 ```bash
 npm run shaders
 ```
 
-`artifacts/` altına altı dosya yazar ve konsola **tek satır** `SHADERS {json}` basar:
+Writes six files under `artifacts/` and prints a **single line** `SHADERS {json}` to the
+console:
 
-| Dosya                | Kernel                            | Backend |
-| -------------------- | --------------------------------- | ------- |
-| `compute.wgsl`       | döküm kerneli (1024, `vec3`)      | WebGPU  |
-| `compute.pbo.glsl`   | aynı kernel, `setPBO(true)`       | WebGL2  |
-| `compute.nopbo.glsl` | aynı kernel, `setPBO` **yok**     | WebGL2  |
-| `step.wgsl`          | uygulamanın gerçek `step` kerneli | WebGPU  |
-| `step.pbo.glsl`      | gerçek `step`, `bond: "on"`       | WebGL2  |
-| `step.nopbo.glsl`    | gerçek `step`, `bond: "broken"`   | WebGL2  |
+| File                 | Kernel                                | Backend |
+| -------------------- | ------------------------------------- | ------- |
+| `compute.wgsl`       | the dump kernel (1024, `vec3`)        | WebGPU  |
+| `compute.pbo.glsl`   | the same kernel, `setPBO(true)`       | WebGL2  |
+| `compute.nopbo.glsl` | the same kernel, **no** `setPBO`      | WebGL2  |
+| `step.wgsl`          | the application's real `step` kernel  | WebGPU  |
+| `step.pbo.glsl`      | the real `step`, `bond: "on"`         | WebGL2  |
+| `step.nopbo.glsl`    | the real `step`, `bond: "broken"`     | WebGL2  |
 
-Bu makinedeki gerçek çıktı:
+The real output on this machine:
 
 ```json
 {
@@ -172,68 +173,67 @@ Bu makinedeki gerçek çıktı:
 }
 ```
 
-`glslPbo.hasTexelFetch === true` ile `glslNoPbo.hasTexelFetch === false` arasındaki
-tek fark bir satırlık `.setPBO(true)` çağrısı.
+The only difference between `glslPbo.hasTexelFetch === true` and
+`glslNoPbo.hasTexelFetch === false` is a one-line `.setPBO(true)` call.
 
-**Modül grafiği uyarısı:** `tools/dumpShaders.ts` içindeki **her** three import'u
-`three/src/` altından gelir. `three/tsl` (build çıktısı) ile `three/src/...` ayrı
-modül kopyalarıdır; karıştırırsanız `THREE.TSL: No stack defined for assign
-operation` uyarısı çıkar ve kernel gövdesi **sessizce boş derlenir**.
-`tools/dumpSimulation.ts` tam tersini yapar (builder ve kernel ikisi de build
-çıktısından) — yasak olan iki grafiği tek builder'da buluşturmak.
+**Module graph warning:** **every** three import inside `tools/dumpShaders.ts` comes from
+under `three/src/`. `three/tsl` (the build output) and `three/src/...` are separate module
+copies; if you mix them you get a `THREE.TSL: No stack defined for assign operation` warning
+and the kernel body **silently compiles empty**. `tools/dumpSimulation.ts` does the exact
+opposite (builder and kernel both from the build output) — what is forbidden is bringing the
+two graphs together in a single builder.
 
-### `npm run bench` — CPU ölçümleri
+### `npm run bench` — CPU measurements
 
 ```bash
 npm run bench
 ```
 
-Konsola **tek satır** `BENCH {json}`. Bu makinede (Node v22.22.2, Apple M2 Pro):
+A **single line** `BENCH {json}` to the console. On this machine (Node v22.22.2, Apple M2 Pro):
 
-| Ölçüm                                   | Değer                                                              |
-| --------------------------------------- | ------------------------------------------------------------------ |
-| Alan yakınsaması `16×8`                 | 224 üçgen · 12,1667 · `4π`'den %3,181 sapma                        |
-| Alan yakınsaması `32×16`                | 960 üçgen · 12,4657 · %0,801                                       |
-| Alan yakınsaması `64×32`                | 3968 üçgen · 12,5412 · %0,201                                      |
-| Alan yakınsaması `128×64`               | 16128 üçgen · 12,5601 · %0,050                                     |
-| Kutup kepi (`y > 0,8`), CDF             | **0,10002** (analitik `0,1`)                                       |
-| Kutup kepi, üçgen başına düzgün seçim   | **0,19506** (2× fazla temsil)                                      |
-| `setWeightAttribute` üst yarı oranı     | 0,95324 (yani %100 değil)                                          |
-| CDF örnekleme 100k / 200k / 500k        | 17,63 / 31,83 / 79,16 ms → 176 / 159 / **158 ns/nokta**            |
-| `MeshSurfaceSampler` 100k / 200k / 500k | 25,33 / 43,72 / 112,88 ms → 253 / 219 / **226 ns/nokta**           |
-| CDF kurulumu (3968 üçgen)               | 0,209 ms                                                           |
-| VRAM 100k / 200k / 500k (4 × `vec4`)    | 6,10 / 12,21 / 30,52 MiB (`vec3` sanılan: 4,58 / 9,16 / 22,89 MiB) |
+| Measurement                              | Value                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| Area convergence `16×8`                  | 224 triangles · 12.1667 · 3.181% off `4π`                          |
+| Area convergence `32×16`                 | 960 triangles · 12.4657 · 0.801%                                   |
+| Area convergence `64×32`                 | 3968 triangles · 12.5412 · 0.201%                                  |
+| Area convergence `128×64`                | 16128 triangles · 12.5601 · 0.050%                                 |
+| Polar cap (`y > 0.8`), CDF               | **0.10002** (analytic `0.1`)                                       |
+| Polar cap, uniform per-triangle pick     | **0.19506** (2× over-represented)                                  |
+| `setWeightAttribute` upper-half ratio    | 0.95324 (i.e. not 100%)                                            |
+| CDF sampling 100k / 200k / 500k          | 17.63 / 31.83 / 79.16 ms → 176 / 159 / **158 ns/point**            |
+| `MeshSurfaceSampler` 100k / 200k / 500k  | 25.33 / 43.72 / 112.88 ms → 253 / 219 / **226 ns/point**           |
+| CDF setup (3968 triangles)               | 0.209 ms                                                           |
+| VRAM 100k / 200k / 500k (4 × `vec4`)     | 6.10 / 12.21 / 30.52 MiB (assumed `vec3`: 4.58 / 9.16 / 22.89 MiB) |
 
-Her hız ölçümü **3 koşu**, medyan raporlanıyor; ham koşular JSON'daki `runs`
-alanında. Analitik `4π = 12,5664`; hesaplanan toplam **her zaman altında** kalır
-(içe çizilmiş çokyüzlünün alanı küreden büyük olamaz) ve segment sayısıyla tek
-yönlü küçülür — bedava bir doğrulama sayısı.
+Every timing measurement is **3 runs**, the median is reported; the raw runs are in the `runs`
+field of the JSON. The analytic `4π = 12.5664`; the computed total is **always below** it (the
+area of an inscribed polyhedron cannot exceed the sphere's) and shrinks monotonically with the
+segment count — a free verification number.
 
-## Deterministik ölçüm modu — ÖLÇÜM URL'LERİ
+## Deterministic measurement mode — MEASUREMENT URLS
 
 ```bash
 npm run dev
 ```
 
-| URL                                               | Ne ölçer                                  |
-| ------------------------------------------------- | ----------------------------------------- |
-| `http://localhost:5173/?measure=1&backend=webgpu` | WebGPU koşusu, tek satır `MEASURE {json}` |
-| `http://localhost:5173/?measure=1&backend=webgl2` | `forceWebGL` koşusu, aynı alanlar         |
+| URL                                               | What it measures                            |
+| ------------------------------------------------- | ------------------------------------------- |
+| `http://localhost:5173/?measure=1&backend=webgpu` | The WebGPU run, a single `MEASURE {json}` line |
+| `http://localhost:5173/?measure=1&backend=webgl2` | The `forceWebGL` run, the same fields       |
 
-`?measure=1` açıldığında: arayüz ve rAF döngüsü kapanır, arka tampon **960×540**'a
-kilitlenir (`devicePixelRatio` ve ölçek yok sayılır), tohumlar sabittir
-(kaynak bulut `seed = 1`, hedef `seed = 2`), morph animasyonu kapalıdır ve `morphT`
-elle set edilir, alt adım sayısı sabittir (`SUBSTEPS = 2`, delta-zaman **yok**),
-kamera koda gömülüdür. Her ölçüm bloğu **60 ısınma + 180 ölçülen** kare.
-Sonunda konsola **tek satır** `MEASURE {json}` düşer; başka `console.log` yok.
+When `?measure=1` is on: the UI and the rAF loop shut down, the back buffer is locked to
+**960×540** (`devicePixelRatio` and the scale are ignored), the seeds are fixed (source cloud
+`seed = 1`, target `seed = 2`), the morph animation is off and `morphT` is set by hand, the
+substep count is fixed (`SUBSTEPS = 2`, **no** delta-time), and the camera is hard-coded. Every
+measurement block is **60 warm-up + 180 measured** frames. At the end a **single line**
+`MEASURE {json}` lands in the console; there is no other `console.log`.
 
-Koşu programı sırayla: (1) hız süpürmesi 100k/200k/500k · (2) eş bağı kapalı/açık ·
-(3) morph maliyeti `morphT ∈ {0; 0,5; 1}` · (4) checksum (`off`/`on`/`broken`, her
-biri **iki kez**, 240 adım, `getArrayBufferAsync` ile geri okuma) · (5) yeniden
-kurulum donması · (6) `vec3` dolgusu kanıtı.
+The run programme, in order: (1) speed sweep 100k/200k/500k · (2) pair bond off/on · (3) morph
+cost `morphT ∈ {0, 0.5, 1}` · (4) checksum (`off`/`on`/`broken`, each one **twice**, 240 steps,
+read back with `getArrayBufferAsync`) · (5) rebuild stall · (6) proof of the `vec3` padding.
 
-`MEASURE` şeması — aşağıdaki sayılar bu makinedeki **gerçek** WebGPU koşusundan
-(Apple M2 Pro, headless Chrome 151), alan listesi olarak okuyun:
+The `MEASURE` schema — the numbers below are from a **real** WebGPU run on this machine (Apple
+M2 Pro, headless Chrome 151); read it as a field list:
 
 ```json
 {
@@ -289,58 +289,58 @@ kurulum donması · (6) `vec3` dolgusu kanıtı.
 }
 ```
 
-Kurallar:
+Rules:
 
-- **Zaman damgası yoksa uydurulmuyor.** `timestamps: false` gelirse `compute` ve
-  `render` alanları `null` kalır, yalnız `frame` ve `cpu` okunur.
-- GPU zaman damgaları **kuantize**: aynı medyanın tekrar etmesi sayacın çözünürlüğünü
-  gösterir, kararlılığı değil.
-- `frame.median` ekran yenileme hızına kilitli (`8,3 ms` = 120 Hz). Doygunluğu
-  `compute` ve `render` sütunlarından okuyun, kare süresinden değil.
-- `checksum` bloğunda zamanlama yok ve her yapılandırma **kendi renderer'ında**
-  koşar. `trackTimestamp` bu blokta kapalı: 240 ardışık compute, 2048 sorguluk
-  zaman damgası havuzunu doldurup uyarı bastırıyor.
-- Ölçüm **gizli sekmede alınmaz**: `requestAnimationFrame` kısılır, sayılar bozulur.
+- **If there are no timestamps, none are invented.** If `timestamps: false` comes back, the
+  `compute` and `render` fields stay `null`, and only `frame` and `cpu` are read.
+- GPU timestamps are **quantized**: the same median repeating shows the counter's resolution,
+  not stability.
+- `frame.median` is locked to the display refresh rate (`8.3 ms` = 120 Hz). Read saturation
+  from the `compute` and `render` columns, not from the frame duration.
+- There is no timing in the `checksum` block and every configuration runs **in its own
+  renderer**. `trackTimestamp` is off in this block: 240 consecutive computes fill the
+  2048-query timestamp pool and trigger a warning.
+- Measurements are **not taken in a hidden tab**: `requestAnimationFrame` gets throttled and
+  the numbers are ruined.
 
-### Makalenin ana iddiası: `checksum.brokenEqualsOff`
+### The article's main claim: `checksum.brokenEqualsOff`
 
-Bu makinede ölçülen:
+Measured on this machine:
 
-| Backend | `off`      | `on`                     | `broken`   | `brokenEqualsOff` | `maxAbsDiffBrokenOff` |
-| ------- | ---------- | ------------------------ | ---------- | ----------------- | --------------------- |
-| WebGL2  | 2846883600 | 614728775                | 2846883600 | **`true`**        | **0**                 |
-| WebGPU  | 2846883600 | (koşudan koşuya değişir) | (değişir)  | `false`           | 0,08133101            |
+| Backend | `off`      | `on`                    | `broken`  | `brokenEqualsOff` | `maxAbsDiffBrokenOff` |
+| ------- | ---------- | ----------------------- | --------- | ----------------- | --------------------- |
+| WebGL2  | 2846883600 | 614728775               | 2846883600 | **`true`**       | **0**                 |
+| WebGPU  | 2846883600 | (varies run to run)     | (varies)  | `false`           | 0.08133101            |
 
-WebGL2 sütunu iddiayı **bit-birebir** kanıtlıyor: `setPBO` olmadan `"broken"`,
-`"off"` ile aynı sonucu veriyor — eş kuvveti hiç uygulanmamış.
+The WebGL2 row proves the claim **bit for bit**: without `setPBO`, `"broken"` gives the same
+result as `"off"` — the pair force was never applied at all.
 
-WebGPU tarafında `broken` ile `on` arasındaki **maksimum mutlak fark 1,8·10⁻⁷**
-(yani aynı simülasyon), ama checksum'lar bit-birebir tutmuyor ve `repeatable`
-alanı `false`: eş okuması ile eş yazması arasında senkronizasyon olmadığı için
-sonuç koşudan koşuya kayan noktanın son basamağında oynuyor. `off` yapılandırması
-(rastgele okuma yok) her koşuda **aynı** çıkıyor — hem WebGPU'da hem WebGL2'de,
-üstelik iki backend'de de aynı sayı.
+On the WebGPU side the **maximum absolute difference between `broken` and `on` is 1.8·10⁻⁷**
+(i.e. the same simulation), but the checksums do not match bit for bit and the `repeatable`
+field is `false`: because there is no synchronization between the neighbour read and the
+neighbour write, the result wobbles in the last digit of the floating point from run to run.
+The `off` configuration (no random read) comes out **identical** on every run — on both WebGPU
+and WebGL2, and moreover the same number on both backends.
 
-### Ham ölçüm kaydı
+### Raw measurement log
 
-Seri konvansiyonu: bir koşunun konsola düşen `MEASURE {json}` satırları
-`measurements-YYYY-MM-DD.jsonl` dosyasına, satır başına bir koşu olacak şekilde
-yazılır (`id` alanı URL etiketiyle, soğuk koşular `note` ile işaretli).
-Makaledeki tablolar bu dosyaya dayanır.
+Series convention: the `MEASURE {json}` lines a run drops into the console are written into a
+`measurements-YYYY-MM-DD.jsonl` file, one run per line (the `id` field carries the URL label,
+cold runs are marked with `note`). The tables in the article are based on that file.
 
-## Bilinen kapsam sınırları
+## Known scope limits
 
-- Kernel dallanmıyor, atomik/barrier kullanmıyor, kendi indeksi dışına **yazmıyor**.
-  (Transform feedback başka bir yuvaya yazamaz; iki backend'i birden hedefleyen
-  her kernel bu kurala uymak zorunda.)
-- Parçacık sayısı değişince tamponlar yeniden kuruluyor; `instancedArray` yeniden
-  boyutlandırılmıyor.
-- Morph hedefleri bir kez örnekleniyor; çalışma anında yeni mesh yüklenmiyor.
-- Eş bağı fiziksel bir kuvvet değil: görsel bir bağ ve rastgele okumanın kobayı.
-- 1.000.000 parçacık seçeneği **yok** (seri demo ağırlık kuralı). Sınır bellek
-  değil — 1M'de bile dört tampon WebGPU'nun varsayılan
-  `maxStorageBufferBindingSize` sınırının altında kalıyor — CPU örnekleme donması.
+- The kernel does not branch, does not use atomics/barriers, and does not **write** outside its
+  own index. (Transform feedback cannot write to another slot; any kernel targeting both
+  backends has to obey this rule.)
+- When the particle count changes the buffers are rebuilt; `instancedArray` is not resized.
+- The morph targets are sampled once; no new mesh is loaded at runtime.
+- The pair bond is not a physical force: it is a visual link and the guinea pig for the random
+  read.
+- There is **no** 1,000,000 particle option (the series' demo weight rule). The limit is not
+  memory — even at 1M the four buffers stay below WebGPU's default
+  `maxStorageBufferBindingSize` limit — it is the CPU sampling stall.
 
-## Lisans
+## License
 
-MIT — bkz. `LICENSE`.
+MIT — see `LICENSE`.

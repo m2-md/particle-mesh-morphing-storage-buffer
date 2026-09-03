@@ -2,7 +2,7 @@
   "name": "particle-mesh-morphing-storage-buffer",
   "private": true,
   "version": "1.0.0",
-  "description": "Tek TSL compute kerneli iki backend'e derleniyor: WebGPU'da var<storage, read_write>, WebGL2'de transform feedback + texelFetch. Mesh yuzeyinden alan-agirlikli ornekleme ile mesh'ten mesh'e parcacik morph'u; shader dokumu, CPU ornekleme ve GPU ms olculur",
+  "description": "Morphing 100,000 particles between complex 3D meshes using a single Three.js TSL compute kernel backed by storage buffers across WebGPU and WebGL2 compatibility backends.",
   "type": "module",
   "license": "MIT",
   "scripts": {

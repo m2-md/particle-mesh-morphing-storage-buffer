@@ -3,22 +3,22 @@ import { BufferAttribute, BufferGeometry, Vector3 } from "three";
 import { buildSurfaceSampler } from "../src/sampling/surfaceSampler";
 
 /**
- * `pickTriangle` bir kapanış (closure); dışarı açmadan sınıyoruz.
- * `sample` ilk `rng()` çağrısını `x = rng() * total` için kullanıyor, kalan
- * ikisini barycentric için. Sabit dizi veren bir rng ile hangi üçgenin
- * seçildiğini üretilen noktanın konumundan okuyabiliyoruz.
+ * `pickTriangle` is a closure; tested via sampling.
+ * `sample` uses first `rng()` call for `x = rng() * total`, remaining
+ * two for barycentric coords. With a scripted rng, which triangle
+ * was picked can be deduced from generated point position.
  */
 function scriptedRng(values: number[]): () => number {
   let i = 0;
   return () => values[Math.min(i++, values.length - 1)];
 }
 
-/** İki eşit alanlı (0,5) üçgen: biri y≈0'da, öteki y≈10'da. */
+/** Two equal-area (0.5) triangles: one at y≈0, other at y≈10. */
 function twoTriangles(): BufferGeometry {
   const geometry = new BufferGeometry();
   const positions = new Float32Array([
     0, 0, 0, 1, 0, 0, 0, 1, 0,
-    // ikinci üçgen 10 birim yukarıda
+    // second triangle 10 units up
     0, 10, 0, 1, 10, 0, 0, 11, 0,
   ]);
   geometry.setAttribute("position", new BufferAttribute(positions, 3));
@@ -32,40 +32,40 @@ function pickedTriangle(rngValues: number[]): number {
   return p.y > 5 ? 1 : 0;
 }
 
-describe("binary search ile üçgen seçimi", () => {
-  it("iki üçgenin toplam alanı 1", () => {
+describe("triangle selection via binary search", () => {
+  it("total area of two triangles is 1", () => {
     expect(buildSurfaceSampler(twoTriangles()).totalArea).toBeCloseTo(1, 10);
   });
 
-  it("x = 0 ilk üçgeni seçer", () => {
+  it("x = 0 selects first triangle", () => {
     expect(pickedTriangle([0, 0.1, 0.1])).toBe(0);
   });
 
-  it("x total'e dayandığında son üçgeni seçer", () => {
+  it("x nearing total selects last triangle", () => {
     expect(pickedTriangle([0.999999, 0.1, 0.1])).toBe(1);
   });
 
-  it("kümülatif sınıra TAM denk gelen değer bir sonraki üçgeni seçmez", () => {
-    // total = 1, cumulative[0] = 0,5. x = 0,5 -> `cumulative[0] < x` yanlış -> 0.
+  it("value exactly on cumulative boundary does not advance to next triangle", () => {
+    // total = 1, cumulative[0] = 0.5. x = 0.5 -> `cumulative[0] < x` false -> 0.
     expect(pickedTriangle([0.5, 0.1, 0.1])).toBe(0);
   });
 
-  it("sınırın hemen üstü bir sonraki üçgene geçer", () => {
+  it("just above boundary transitions to next triangle", () => {
     expect(pickedTriangle([0.5 + 1e-9, 0.1, 0.1])).toBe(1);
   });
 
-  it("barycentric katlama noktayı üçgenin içinde tutuyor", () => {
+  it("barycentric folding keeps point inside triangle", () => {
     const sampler = buildSurfaceSampler(twoTriangles());
     const p = new Vector3();
-    // u + v > 1 olan bir çift: katlama devreye giriyor.
+    // u + v > 1 pair: folding takes effect.
     sampler.sample(scriptedRng([0, 0.9, 0.8]), p);
-    // Katlama sonrası u = 0,1 · v = 0,2 -> nokta (0,1 · 0,2 · 0)
+    // After folding u = 0.1, v = 0.2 -> point (0.1, 0.2, 0)
     expect(p.x).toBeCloseTo(0.1, 6);
     expect(p.y).toBeCloseTo(0.2, 6);
     expect(p.x + p.y).toBeLessThanOrEqual(1 + 1e-9);
   });
 
-  it("katlama olmadan da üçgenin içinde kalıyor", () => {
+  it("remains inside triangle without folding", () => {
     const sampler = buildSurfaceSampler(twoTriangles());
     const p = new Vector3();
     sampler.sample(scriptedRng([0, 0.25, 0.25]), p);
@@ -73,8 +73,8 @@ describe("binary search ile üçgen seçimi", () => {
     expect(p.y).toBeCloseTo(0.25, 6);
   });
 
-  it("alanla orantılı seçim: büyük üçgen daha çok nokta alıyor", () => {
-    // Üçgen 0 alanı 0,5; üçgen 1 alanı 4,5 (3x büyütülmüş) -> oran 1:9
+  it("area-weighted selection: larger triangle receives more points", () => {
+    // Triangle 0 area 0.5; triangle 1 area 4.5 (3x scaled) -> ratio 1:9
     const geometry = new BufferGeometry();
     geometry.setAttribute(
       "position",
@@ -90,7 +90,7 @@ describe("binary search ile üçgen seçimi", () => {
     let big = 0;
     const N = 20_000;
     for (let i = 0; i < N; i++) {
-      // Düzgün x taraması: alan oranını doğrudan ölçüyoruz.
+      // Uniform x scan: directly measuring area ratio.
       sampler.sample(scriptedRng([i / N, 0.1, 0.1]), p);
       if (p.y > 5) big++;
     }

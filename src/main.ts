@@ -17,13 +17,13 @@ if (params.get("measure") === "1") {
   void runMeasurement(canvas, { forceWebGL, three: THREE_VERSION }).then((report) => {
     console.log("MEASURE " + JSON.stringify(report));
     const done = document.querySelector<HTMLElement>("#measure-status");
-    if (done !== null) done.textContent = "MEASURE tamam — konsola bakın.";
+    if (done !== null) done.textContent = "MEASURE complete — check console.";
   });
 } else {
   void boot();
 }
 
-const MORPH_STEP = 1 / 90; // kare başına sabit adım; duvar saati ölçüme girmiyor
+const MORPH_STEP = 1 / 90; // fixed step per frame; wall clock not factored into measurement
 
 async function boot(): Promise<void> {
   const hudRoot = document.querySelector<HTMLElement>("#hud")!;
@@ -40,7 +40,7 @@ async function boot(): Promise<void> {
   let running = true;
   let frameId = 0;
   let scale = Number(scaleSelect.value);
-  let morphDirection = 0; // açılışta küre; geçişi Morph düğmesi tetikliyor
+  let morphDirection = 0; // starts as sphere; transition triggered by Morph button
   let morphT = 0;
   let backing = { width: 0, height: 0 };
 
@@ -52,11 +52,11 @@ async function boot(): Promise<void> {
   let renderMs: number | null = null;
   let timingPending = false;
 
-  backendLink.textContent = app.backend === "webgpu" ? "WebGL2'ye geç" : "WebGPU'ya geç";
+  backendLink.textContent = app.backend === "webgpu" ? "Switch to WebGL2" : "Switch to WebGPU";
   backendLink.href = app.backend === "webgpu" ? "?backend=webgl2" : "?backend=webgpu";
 
   if (!app.timestampsAvailable) {
-    hud.note("GPU zaman damgası yok: compute/render sütunları boş kalıyor.");
+    hud.note("No GPU timestamps: compute/render columns remain empty.");
   }
 
   function applySize(): void {
@@ -71,7 +71,7 @@ async function boot(): Promise<void> {
   function stats() {
     return {
       backend: app.backend === "webgpu" ? "WebGPU" : "WebGL2",
-      particles: app.count.toLocaleString("tr-TR"),
+      particles: app.count.toLocaleString("en-US"),
       bond: bondLabel(app.bond),
       buffer: `${backing.width}×${backing.height}`,
       scale: scale.toFixed(2),
@@ -80,7 +80,7 @@ async function boot(): Promise<void> {
       computeMs,
       renderMs,
       vram: app.vramLabel(),
-      rebuildMs: `${app.lastRebuild.totalMs.toFixed(1)} ms (örnekleme ${app.lastRebuild.sampleMs.toFixed(1)})`,
+      rebuildMs: `${app.lastRebuild.totalMs.toFixed(1)} ms (sampling ${app.lastRebuild.sampleMs.toFixed(1)})`,
     };
   }
 
@@ -125,7 +125,7 @@ async function boot(): Promise<void> {
   function setRunning(next: boolean): void {
     if (next === running) return;
     running = next;
-    toggleButton.textContent = running ? "Dur" : "Devam";
+    toggleButton.textContent = running ? "Pause" : "Resume";
     if (running) frameId = requestAnimationFrame(frame);
     else cancelAnimationFrame(frameId);
   }
@@ -142,15 +142,15 @@ async function boot(): Promise<void> {
   for (const button of countButtons) {
     button.addEventListener("click", () => {
       const next = Number(button.dataset.count);
-      hud.note("yeniden kuruluyor…");
+      hud.note("rebuilding…");
       void app.rebuild(next, app.bond).then((timing) => {
         for (const b of countButtons) b.classList.toggle("active", b === button);
         morphT = 0;
         morphDirection = 0;
         app.setMorphT(0);
         hud.note(
-          `${next.toLocaleString("tr-TR")} parçacık: örnekleme ${timing.sampleMs.toFixed(1)} ms, ` +
-            `kurulum ${timing.setupMs.toFixed(1)} ms, toplam ${timing.totalMs.toFixed(1)} ms`,
+          `${next.toLocaleString("en-US")} particles: sampling ${timing.sampleMs.toFixed(1)} ms, ` +
+            `setup ${timing.setupMs.toFixed(1)} ms, total ${timing.totalMs.toFixed(1)} ms`,
         );
       });
     });
@@ -164,7 +164,7 @@ async function boot(): Promise<void> {
       app.setMorphT(0);
       hud.note(
         next === "broken"
-          ? "Eş bağı açık ama setPBO YOK. WebGL2'de bağ sessizce kayboluyor; WebGPU'da fark yok."
+          ? "Pair bond enabled but NO setPBO. In WebGL2 bond vanishes silently; no difference in WebGPU."
           : null,
       );
     });
@@ -179,7 +179,7 @@ async function boot(): Promise<void> {
 }
 
 function bondLabel(bond: BondMode): string {
-  if (bond === "off") return "Kapalı";
-  if (bond === "on") return "Açık (PBO)";
-  return "Açık (PBO'suz)";
+  if (bond === "off") return "Off";
+  if (bond === "on") return "On (PBO)";
+  return "On (No PBO)";
 }

@@ -1,8 +1,8 @@
 /**
- * HUD iki gruba ayrılıyor:
- * - YAPISAL: kurulumun kendisi (parçacık sayısı, eş bağı, arka tampon, ölçek).
- * - ÖLÇÜM: koşarken sayılan şeyler (backend, FPS, kare ms, GPU ms, VRAM).
- * GPU saati yoksa hücreye 0 yazılmaz, "yok" yazılır.
+ * HUD is split into two groups:
+ * - STRUCTURAL: configuration details (particle count, pair bond, back buffer, scale).
+ * - METRIC: runtime counters (backend, FPS, frame ms, GPU ms, VRAM).
+ * If GPU clock is unavailable, cells display "none" rather than 0.
  */
 export interface HudReadings {
   backend: string;
@@ -23,18 +23,18 @@ export interface Hud {
   note(text: string | null): void;
 }
 
-const ROWS: Array<{ key: keyof HudReadings; label: string; group: "YAPISAL" | "ÖLÇÜM" }> = [
-  { key: "particles", label: "Parçacık", group: "YAPISAL" },
-  { key: "bond", label: "Eş bağı", group: "YAPISAL" },
-  { key: "buffer", label: "Arka tampon", group: "YAPISAL" },
-  { key: "scale", label: "Çözünürlük ölçeği", group: "YAPISAL" },
-  { key: "vram", label: "Tampon toplamı", group: "YAPISAL" },
-  { key: "backend", label: "Backend", group: "ÖLÇÜM" },
-  { key: "fps", label: "FPS", group: "ÖLÇÜM" },
-  { key: "frameMs", label: "Kare (ms)", group: "ÖLÇÜM" },
-  { key: "computeMs", label: "Compute GPU (ms)", group: "ÖLÇÜM" },
-  { key: "renderMs", label: "Render GPU (ms)", group: "ÖLÇÜM" },
-  { key: "rebuildMs", label: "Son kurulum donması", group: "ÖLÇÜM" },
+const ROWS: Array<{ key: keyof HudReadings; label: string; group: "STRUCTURAL" | "METRIC" }> = [
+  { key: "particles", label: "Particles", group: "STRUCTURAL" },
+  { key: "bond", label: "Pair bond", group: "STRUCTURAL" },
+  { key: "buffer", label: "Back buffer", group: "STRUCTURAL" },
+  { key: "scale", label: "Resolution scale", group: "STRUCTURAL" },
+  { key: "vram", label: "Total buffers", group: "STRUCTURAL" },
+  { key: "backend", label: "Backend", group: "METRIC" },
+  { key: "fps", label: "FPS", group: "METRIC" },
+  { key: "frameMs", label: "Frame (ms)", group: "METRIC" },
+  { key: "computeMs", label: "Compute GPU (ms)", group: "METRIC" },
+  { key: "renderMs", label: "Render GPU (ms)", group: "METRIC" },
+  { key: "rebuildMs", label: "Last rebuild stall", group: "METRIC" },
 ];
 
 export function createHud(root: HTMLElement): Hud {
@@ -81,7 +81,7 @@ export function createHud(root: HTMLElement): Hud {
 }
 
 function format(key: keyof HudReadings, value: string | number | null): string {
-  if (value === null) return "yok"; // GPU saati yoksa 0 yazmıyoruz
+  if (value === null) return "none"; // does not write 0 if GPU clock missing
   if (typeof value === "string") return value;
   if (key === "fps") return value.toFixed(0);
   return value.toFixed(2);

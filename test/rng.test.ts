@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "../src/sampling/rng";
 
 describe("mulberry32", () => {
-  it("üretilen değerler [0,1) aralığında", () => {
+  it("generated values are in [0,1) range", () => {
     const rng = mulberry32(42);
     for (let i = 0; i < 5000; i++) {
       const v = rng();
@@ -11,7 +11,7 @@ describe("mulberry32", () => {
     }
   });
 
-  it("aynı tohum aynı diziyi verir", () => {
+  it("same seed yields same sequence", () => {
     const a = mulberry32(42);
     const b = mulberry32(42);
     const first = Array.from({ length: 5 }, () => a());
@@ -19,7 +19,7 @@ describe("mulberry32", () => {
     expect(first).toEqual(second);
   });
 
-  it("farklı tohum farklı dizi verir", () => {
+  it("different seed yields different array", () => {
     const a = mulberry32(42);
     const b = mulberry32(43);
     const first = Array.from({ length: 5 }, () => a());
@@ -27,7 +27,7 @@ describe("mulberry32", () => {
     expect(first).not.toEqual(second);
   });
 
-  it("iki örnek birbirinin durumunu paylaşmıyor", () => {
+  it("two instances do not share state", () => {
     const a = mulberry32(7);
     const b = mulberry32(7);
     a();
@@ -35,7 +35,7 @@ describe("mulberry32", () => {
     expect(b()).toBe(mulberry32(7)());
   });
 
-  it("dağılım kabaca düzgün: 10 kovada her biri %8–%12", () => {
+  it("distribution is roughly uniform: 8-12% in each of 10 buckets", () => {
     const rng = mulberry32(1);
     const buckets = new Array(10).fill(0);
     const N = 100_000;
